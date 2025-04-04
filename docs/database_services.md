@@ -1,230 +1,231 @@
 # Hermes Database Services
 
-Hermes provides a centralized set of database services that can be used by all Tekton components. These services abstract away the underlying database implementations, providing a consistent interface for various data storage and retrieval needs.
+## Overview
 
-## Available Database Types
+Hermes Database Services provides a centralized database solution for the Tekton ecosystem, offering a unified interface to access multiple database types through a single API. It abstracts away the complexities of database selection, connection management, and resource optimization, allowing components to focus on their core functionality.
 
-### 1. Vector Database
+## Key Features
 
-Optimized for storing and retrieving vector embeddings used in semantic search:
+- **Unified Interface**: Access different database types through a consistent API
+- **Automatic Backend Selection**: Optimized for available hardware (GPU, Apple Silicon, etc.)
+- **Namespace Isolation**: Data segregation between different components
+- **Connection Pooling**: Efficient resource utilization
+- **Multi-Protocol Access**: Support for both REST API and MCP protocol
+- **Comprehensive Client Library**: Simple, idiomatic client code
+- **Graceful Degradation**: Fallback to simpler backends when preferred ones are unavailable
 
-```python
-from hermes.utils.database_helper import DatabaseClient
+## Architecture
 
-# Initialize client
-db_client = DatabaseClient(component_id="engram.memory")
+Hermes Database Services consists of several components:
 
-# Get vector database for a specific namespace
-vector_db = await db_client.get_vector_db(namespace="conversations")
+1. **Database Manager**: Core service that manages connections and adapters
+2. **Database Adapters**: Type-specific implementations for each database type
+3. **MCP Server**: Multi-Capability Provider server for MCP protocol access
+4. **REST API**: RESTful API endpoints for direct HTTP access
+5. **Client Library**: Easy-to-use client code for Tekton components
 
-# Store a vector with metadata and text
-await vector_db.store(
-    id="memory-123",
-    vector=[0.1, 0.2, 0.3, ...],  # Vector embedding
-    metadata={"timestamp": "2025-03-30T12:34:56Z", "user": "alice"},
-    text="This is the full text associated with the vector"
-)
+## Tekton Integration Philosophy
 
-# Search for similar vectors
-results = await vector_db.search(
-    query_vector=[0.15, 0.22, 0.31, ...],
-    limit=5,
-    filter={"user": "alice"}
-)
-```
+The Hermes Database Services embodies Tekton's core philosophy:
 
-### 2. Key-Value Database
+- **Single Point of Control**: Hermes automatically manages all database services, starting and stopping them as needed. Components don't need to worry about service management.
+- **Automatic Configuration**: Common configuration is shared across services, simplifying deployment and management.
+- **Seamless Discovery**: Components automatically discover and connect to the appropriate database services without manual configuration.
+- **Registration and Health Monitoring**: All database services are registered with Hermes and monitored for health status.
+- **Resource Optimization**: Resources are shared and optimized across the ecosystem.
 
-For simple key-value storage with optional expiration:
+This approach allows Tekton to operate as a cohesive system rather than a collection of independent components, enhancing reliability, efficiency, and developer experience.
 
-```python
-# Get key-value database
-kv_db = await db_client.get_key_value_db(namespace="cache")
+## Supported Database Types
 
-# Store values
-await kv_db.set("user:alice", {"name": "Alice", "role": "admin"})
-await kv_db.set("session:123", {"user_id": "alice", "active": True}, expiration=3600)  # 1 hour
+| Type | Description | Use Cases | Available Backends |
+|------|-------------|-----------|-------------------|
+| Vector | Vector database for embeddings | Semantic search, similarity matching | FAISS, Qdrant, ChromaDB, LanceDB |
+| Graph | Graph database for relationships | Knowledge graphs, network analysis | Neo4j, NetworkX |
+| Key-Value | Key-value store for simple data | Caching, configuration storage | Redis, LevelDB, RocksDB |
+| Document | Document database for unstructured data | Content storage, metadata | MongoDB, JSONDB |
+| Cache | In-memory cache for temporary data | Session storage, result caching | Memory, Memcached |
+| Relational | SQL database for structured data | User data, structured information | SQLite, PostgreSQL |
 
-# Retrieve values
-user = await kv_db.get("user:alice")
+## Getting Started
 
-# Check if key exists
-exists = await kv_db.exists("session:123")
+### Component Registration
 
-# Delete key
-await kv_db.delete("session:123")
+When the Hermes service starts, it automatically:
 
-# Batch operations
-await kv_db.set_batch({
-    "counter:1": 42,
-    "counter:2": 73,
-    "counter:3": 19
-})
-```
+1. Starts the Database MCP server
+2. Registers both services with the service registry
+3. Sets up connections and resource sharing
 
-### 3. Graph Database
+This means component developers don't need to start or manage database services themselves - it's all handled by Hermes.
 
-For storing and querying interconnected data:
+### Client Usage
 
 ```python
-# Get graph database
-graph_db = await db_client.get_graph_db(namespace="knowledge")
+# Get a Hermes client
+from hermes.api.client import HermesClient
 
-# Add nodes
-await graph_db.add_node(
-    id="person:alice",
-    labels=["Person", "Employee"],
-    properties={"name": "Alice", "role": "Developer"}
+client = HermesClient(
+    component_id="my-component",
+    component_name="My Component",
+    component_type="analysis"
 )
 
-await graph_db.add_node(
-    id="project:tekton",
-    labels=["Project"],
-    properties={"name": "Tekton", "status": "Active"}
+# Register with Hermes
+await client.register()
+
+# Get a database client
+db = client.get_database_client()
+
+# Use the database
+vectors = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+metadatas = [{"text": "Hello"}, {"text": "World"}]
+
+# Store vectors
+result = await db.vector_store(
+    vectors=vectors,
+    metadatas=metadatas,
+    namespace="my-component"
 )
 
-# Add relationships
-await graph_db.add_relationship(
-    source_id="person:alice",
-    target_id="project:tekton",
-    type="WORKS_ON",
-    properties={"since": "2025-01-01", "role": "Lead Developer"}
+# Search vectors
+results = await db.vector_search(
+    query_vector=[0.2, 0.3, 0.4],
+    top_k=3,
+    namespace="my-component"
 )
 
-# Query the graph
-results = await graph_db.query(
-    query="""
-    MATCH (p:Person)-[r:WORKS_ON]->(proj:Project)
-    WHERE proj.name = $project_name
-    RETURN p, r, proj
-    """,
-    params={"project_name": "Tekton"}
-)
-```
-
-## Database Backends
-
-Each database type supports multiple backend implementations:
-
-### Vector Database Backends
-
-- **FAISS**: High-performance vector similarity search with GPU acceleration
-- **LanceDB**: Document-oriented vector database (via Engram integration)
-- **Fallback**: Simple in-memory implementation for systems without specialized databases
-
-### Key-Value Database Backends
-
-- **Redis**: Fast in-memory data structure store
-- **Local**: Simple file-based implementation for development/testing
-
-### Graph Database Backends
-
-- **Neo4j**: Industry-standard graph database with Cypher query language
-- **Memory**: Simple in-memory implementation for development/testing
-
-## Namespace Isolation
-
-All database operations occur within a specific namespace to isolate data from different components:
-
-```python
-# Different namespaces for different data types
-conversations_db = await db_client.get_vector_db(namespace="conversations")
-thinking_db = await db_client.get_vector_db(namespace="thinking")
-projects_db = await db_client.get_vector_db(namespace="projects")
-```
-
-## Hardware-Aware Optimization
-
-The database services automatically select the most appropriate backend based on available hardware:
-
-- CUDA-enabled GPUs for FAISS GPU acceleration
-- Apple Metal for optimized performance on Apple Silicon
-- Fallback to CPU implementations when specialized hardware is unavailable
-
-## Integration with Other Tekton Components
-
-### Engram Integration
-
-```python
-from engram.integrations.hermes.memory_adapter import HermesMemoryService
-
-# Initialize memory service with Hermes integration
-memory = HermesMemoryService(client_id="claude")
-
-# Add a memory (uses Hermes vector database)
-await memory.add(
-    content="Important information to remember",
-    namespace="conversations",
-    metadata={"timestamp": "2025-03-30T12:34:56Z"}
+# Cache a value
+await db.cache_set(
+    key="user:1234",
+    value={"name": "Alice", "role": "Admin"},
+    ttl=3600,
+    namespace="my-component"
 )
 
-# Search memories (uses Hermes vector search)
-results = await memory.search("important information", namespace="conversations")
-```
-
-### Athena Integration
-
-```python
-from athena.integrations.hermes.knowledge_adapter import HermesKnowledgeAdapter
-
-# Initialize knowledge service with Hermes integration
-knowledge = HermesKnowledgeAdapter()
-
-# Store knowledge entities (uses Hermes graph database)
-await knowledge.add_entity("Person", "Alice", {"role": "Developer"})
-await knowledge.add_entity("Project", "Tekton", {"status": "Active"})
-await knowledge.add_relationship("Person", "Alice", "WORKS_ON", "Project", "Tekton")
-
-# Query knowledge graph (uses Hermes graph queries)
-developers = await knowledge.query_entities("Person", {"role": "Developer"})
+# Clean up
+await client.close()
 ```
 
 ## Configuration
 
-Database services can be configured through:
+Hermes Database Services can be configured through environment variables:
 
-1. Environment variables
-2. Configuration files
-3. Programmatic configuration
+- `HERMES_DATA_DIR`: Base directory for database storage (default: `~/.tekton/data`)
+- `DB_MCP_PORT`: Port for the Database MCP server (default: `8002`)
+- `DB_MCP_HOST`: Host for the Database MCP server (default: `127.0.0.1`)
+- `HERMES_PORT`: Port for the main Hermes API (default: `8000`)
+- `DEBUG`: Enable debug mode (default: `False`)
 
-Example configuration:
+## Database-Specific Options
+
+Each database type can be configured with specific options:
+
+### Vector Database
 
 ```python
-from hermes.utils.database_helper import configure_databases
+# Specific backend
+await db.vector_store(
+    vectors=vectors,
+    backend="faiss"  # or "qdrant", "chromadb", "lancedb"
+)
 
-configure_databases(
-    vector_db={
-        "backend": "faiss",
-        "use_gpu": True,
-        "default_dimensions": 1536
-    },
-    key_value_db={
-        "backend": "redis",
-        "host": "localhost",
-        "port": 6379
-    },
-    graph_db={
-        "backend": "neo4j",
-        "uri": "bolt://localhost:7687",
-        "username": "neo4j",
-        "password": "password"
-    }
+# With search filter
+await db.vector_search(
+    query_vector=query_vector,
+    filter={"category": "science"}
 )
 ```
 
-## Best Practices
+### Graph Database
 
-1. **Use Namespaces Properly**:
-   - Separate data by logical category
-   - Use consistent naming conventions
-   - Document namespace purposes
+```python
+# Add nodes and relationships
+await db.graph_add_node(
+    node_id="person1",
+    labels=["Person"],
+    properties={"name": "Alice"}
+)
 
-2. **Handle Connection Management**:
-   - Use the context manager pattern for database access
-   - Close connections explicitly when done
-   - Handle connection errors gracefully
+await db.graph_add_relationship(
+    source_id="person1",
+    target_id="person2",
+    rel_type="KNOWS",
+    properties={"since": 2020}
+)
 
-3. **Optimize for Your Use Case**:
-   - Vector search: Use appropriate dimensions and indexing
-   - Key-value: Set appropriate expiration times
-   - Graph: Design schemas for efficient querying
+# Run Cypher query (Neo4j)
+await db.graph_query(
+    query="MATCH (p:Person)-[:KNOWS]->(f) RETURN p, f",
+    parameters={}
+)
+```
+
+## Developing Custom Adapters
+
+Tekton's modular architecture allows for custom database adapters. To create a custom adapter:
+
+1. Create a new adapter class that inherits from the appropriate base adapter
+2. Implement the required methods
+3. Register the adapter with the database factory
+
+Custom adapters can then be used through the standard interface.
+
+## Technical Details
+
+### Data Storage
+
+Each database type maintains separate data storage in the `HERMES_DATA_DIR` directory:
+
+```
+~/.tekton/data/
+  ├── vector/
+  │   ├── default/
+  │   ├── my-component/
+  │   └── another-component/
+  ├── graph/
+  ├── key_value/
+  ├── document/
+  ├── cache/
+  └── relation/
+```
+
+### Namespace Isolation
+
+Each component should use its own namespace for data isolation:
+
+```python
+# Component A
+await db.kv_set(key="config", value={"mode": "A"}, namespace="component-a")
+
+# Component B
+await db.kv_set(key="config", value={"mode": "B"}, namespace="component-b")
+```
+
+This prevents namespace collisions and data leakage between components.
+
+### Error Handling
+
+The client library includes robust error handling and automatic reconnection:
+
+```python
+try:
+    result = await db.vector_search(query_vector=[0.1, 0.2, 0.3])
+except Exception as e:
+    logger.error(f"Database error: {e}")
+    # Fallback behavior
+```
+
+## Performance Considerations
+
+- Vector operations with FAISS use GPU acceleration when available
+- Connection pooling reduces overhead for frequent operations
+- Use namespaces effectively to partition data for better performance
+- Consider caching frequently accessed data using the cache database
+
+## Security
+
+- Data is isolated by namespace
+- Authentication is handled through the registration process
+- Components can only access databases after registration
+- Database files are protected by filesystem permissions

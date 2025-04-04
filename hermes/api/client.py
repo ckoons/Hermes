@@ -65,7 +65,7 @@ class HermesClient:
         """Initialize connection to Hermes services."""
         # Import here to avoid circular imports
         from hermes.core.message_bus import MessageBus
-        from hermes.core.registration import RegistrationClient
+        from hermes.core.registration import RegistrationClient, RegistrationClientAPI
         
         # Extract host and port from endpoint
         if ":" in self.hermes_endpoint:
@@ -203,27 +203,54 @@ class HermesClient:
             callback=callback
         )
     
-    # This method will be expanded in the future to include database access
     def get_database_client(self, 
-                          db_type: str,
-                          namespace: str = None) -> Any:
+                          db_type: str = None,
+                          namespace: str = None,
+                          use_mcp: bool = True) -> Any:
         """
-        Get a client for a specific database type.
+        Get a client for database services.
         
         Args:
             db_type: Type of database (e.g., "vector", "graph", "key-value")
             namespace: Optional namespace for data isolation
+            use_mcp: Whether to use the MCP protocol
             
         Returns:
-            Database client (currently a placeholder)
+            Database client instance
         """
         if not self._is_registered:
             logger.warning("Component not registered, cannot access databases")
             return None
         
-        # This is a placeholder for future implementation
-        logger.info(f"Database client requested for {db_type} in namespace {namespace or 'default'}")
-        return None
+        # Import here to avoid circular imports
+        from hermes.api.database_client import DatabaseClient
+        
+        # Set up endpoints based on the Hermes endpoint
+        if ":" in self.hermes_endpoint:
+            host, port_str = self.hermes_endpoint.split(":")
+            host_base = host
+        else:
+            host_base = self.hermes_endpoint
+        
+        # Determine endpoint based on MCP mode
+        if use_mcp:
+            # MCP endpoint typically on port 8002
+            db_port = os.environ.get("DB_MCP_PORT", "8002")
+            endpoint = f"http://{host_base}:{db_port}"
+        else:
+            # REST API endpoint
+            api_port = os.environ.get("HERMES_PORT", "8000")
+            endpoint = f"http://{host_base}:{api_port}/api"
+        
+        # Create database client
+        db_client = DatabaseClient(
+            endpoint=endpoint,
+            use_mcp=use_mcp,
+            component_id=self.component_id
+        )
+        
+        logger.info(f"Database client created for component {self.component_id}")
+        return db_client
     
     async def close(self) -> None:
         """
