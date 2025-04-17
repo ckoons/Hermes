@@ -12,4 +12,4 @@ backward compatibility.
 from hermes.adapters.vector.faiss import FAISSVectorAdapter
 
 # For backward compatibility
-from hermes.core.database_manager import DatabaseBackend
+from hermes.core.database.database_types import DatabaseBackend

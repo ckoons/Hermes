@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Union, Tuple
 
 from hermes.core.logging import get_logger
-from hermes.core.database_manager import VectorDatabaseAdapter, DatabaseBackend
+from hermes.core.database.adapters import VectorDatabaseAdapter
+from hermes.core.database.database_types import DatabaseBackend
 
 # Logger for this module
 logger = get_logger("hermes.adapters.vector.fallback")

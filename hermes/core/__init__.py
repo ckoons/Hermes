@@ -10,12 +10,52 @@ from hermes.core.logging import (
     LogLevel, LogEntry, LogManager, Logger, 
     init_logging, get_logger
 )
+
+# Import database types and core components
 from hermes.core.database_manager import (
-    DatabaseType, DatabaseBackend, DatabaseManager,
-    DatabaseAdapter, VectorDatabaseAdapter, GraphDatabaseAdapter,
-    KeyValueDatabaseAdapter, DocumentDatabaseAdapter, CacheDatabaseAdapter,
-    RelationalDatabaseAdapter, DatabaseFactory
+    DatabaseType, DatabaseBackend, DatabaseManager, DatabaseFactory
 )
+
+# Import database adapters
+try:
+    from hermes.core.database.adapters import (
+        DatabaseAdapter, VectorDatabaseAdapter, GraphDatabaseAdapter,
+        KeyValueDatabaseAdapter, DocumentDatabaseAdapter, CacheDatabaseAdapter,
+        RelationalDatabaseAdapter
+    )
+except ImportError as e:
+    # Create stub classes for compatibility
+    import logging
+    logging.warning(f"Unable to import database adapters: {e}")
+    from abc import ABC
+    
+    class DatabaseAdapter(ABC):
+        """Stub for DatabaseAdapter"""
+        pass
+    
+    class VectorDatabaseAdapter(DatabaseAdapter):
+        """Stub for VectorDatabaseAdapter"""
+        pass
+    
+    class GraphDatabaseAdapter(DatabaseAdapter):
+        """Stub for GraphDatabaseAdapter"""
+        pass
+    
+    class KeyValueDatabaseAdapter(DatabaseAdapter):
+        """Stub for KeyValueDatabaseAdapter"""
+        pass
+    
+    class DocumentDatabaseAdapter(DatabaseAdapter):
+        """Stub for DocumentDatabaseAdapter"""
+        pass
+    
+    class CacheDatabaseAdapter(DatabaseAdapter):
+        """Stub for CacheDatabaseAdapter"""
+        pass
+    
+    class RelationalDatabaseAdapter(DatabaseAdapter):
+        """Stub for RelationalDatabaseAdapter"""
+        pass
 
 __all__ = [
     # Vector operations
@@ -42,12 +82,14 @@ __all__ = [
     "DatabaseType",
     "DatabaseBackend",
     "DatabaseManager",
+    "DatabaseFactory",
+    
+    # Database Adapters
     "DatabaseAdapter",
     "VectorDatabaseAdapter",
     "GraphDatabaseAdapter",
     "KeyValueDatabaseAdapter",
     "DocumentDatabaseAdapter",
     "CacheDatabaseAdapter",
-    "RelationalDatabaseAdapter",
-    "DatabaseFactory"
+    "RelationalDatabaseAdapter"
 ]
