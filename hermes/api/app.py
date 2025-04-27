@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Import API endpoints
 from hermes.api.endpoints import app as api_app
 from hermes.api.database import api_router as database_router
+from hermes.api.llm_endpoints import llm_router
 
 # Main FastAPI application
 app = FastAPI(
@@ -55,6 +56,9 @@ app.mount("/api", api_app)
 # Add database API routes
 api_app.include_router(database_router)
 
+# Add LLM API routes
+api_app.include_router(llm_router)
+
 # Create service registry and message bus instances
 service_registry = ServiceRegistry()
 message_bus = MessageBus()
@@ -65,6 +69,10 @@ registration_manager = RegistrationManager(
     message_bus=message_bus,
     secret_key=os.environ.get("HERMES_SECRET_KEY", "tekton-secret-key"),
 )
+
+# Create LLM adapter
+from hermes.core.llm_adapter import LLMAdapter
+llm_adapter = LLMAdapter()
 
 # Create database manager
 database_manager = DatabaseManager(
@@ -79,6 +87,7 @@ app.state.service_registry = service_registry
 app.state.message_bus = message_bus
 app.state.registration_manager = registration_manager
 app.state.database_manager = database_manager
+app.state.llm_adapter = llm_adapter
 
 async def start_database_mcp_server():
     """Start the Database MCP server as a separate process."""
