@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 from hermes.api.endpoints import app as api_app
 from hermes.api.database import api_router as database_router
 from hermes.api.llm_endpoints import llm_router
+from hermes.api.a2a_endpoints import a2a_router
+from hermes.api.mcp_endpoints import mcp_router
 
 # Main FastAPI application
 app = FastAPI(
@@ -59,6 +61,12 @@ api_app.include_router(database_router)
 # Add LLM API routes
 api_app.include_router(llm_router)
 
+# Add A2A API routes
+api_app.include_router(a2a_router)
+
+# Add MCP API routes
+api_app.include_router(mcp_router)
+
 # Create service registry and message bus instances
 service_registry = ServiceRegistry()
 message_bus = MessageBus()
@@ -79,6 +87,22 @@ database_manager = DatabaseManager(
     base_path=os.environ.get("HERMES_DATA_DIR", "~/.tekton/data")
 )
 
+# Create A2A and MCP services
+from hermes.core.a2a_service import A2AService
+from hermes.core.mcp_service import MCPService
+
+a2a_service = A2AService(
+    service_registry=service_registry,
+    message_bus=message_bus,
+    registration_manager=registration_manager
+)
+
+mcp_service = MCPService(
+    service_registry=service_registry,
+    message_bus=message_bus,
+    registration_manager=registration_manager
+)
+
 # Track the database MCP server process
 database_mcp_process = None
 
@@ -88,6 +112,8 @@ app.state.message_bus = message_bus
 app.state.registration_manager = registration_manager
 app.state.database_manager = database_manager
 app.state.llm_adapter = llm_adapter
+app.state.a2a_service = a2a_service
+app.state.mcp_service = mcp_service
 
 async def start_database_mcp_server():
     """Start the Database MCP server as a separate process."""
@@ -180,6 +206,10 @@ async def startup_event():
     # Start service registry health check monitoring
     service_registry.start()
     
+    # Initialize A2A and MCP services
+    await a2a_service.initialize()
+    await mcp_service.initialize()
+    
     # Start database MCP server in a separate process
     await start_database_mcp_server()
     
@@ -190,8 +220,15 @@ async def startup_event():
         name="Hermes API Server",
         version="0.1.0",
         component_type="hermes",
-        endpoint=f"http://localhost:{os.environ.get('PORT', '8000')}/api",
-        capabilities=["registration", "service_discovery", "message_bus", "database"],
+        endpoint=f"http://localhost:{os.environ.get('PORT', '8001')}/api",
+        capabilities=[
+            "registration", 
+            "service_discovery", 
+            "message_bus", 
+            "database", 
+            "a2a", 
+            "mcp"
+        ],
         metadata={
             "description": "Central registration and messaging service for Tekton ecosystem"
         }
@@ -223,6 +260,46 @@ async def startup_event():
         logger.info(f"Database MCP server registered with ID: {db_component_id}")
     else:
         logger.warning("Failed to register Database MCP server")
+    
+    # Register the A2A service
+    a2a_component_id = "hermes-a2a-service"
+    
+    success, _ = registration_manager.register_component(
+        component_id=a2a_component_id,
+        name="Hermes A2A Service",
+        version="0.1.0",
+        component_type="hermes",
+        endpoint=f"http://localhost:{os.environ.get('PORT', '8001')}/api/a2a",
+        capabilities=["a2a", "agent_registry", "task_management", "conversation_management"],
+        metadata={
+            "description": "Agent-to-Agent communication service for Tekton ecosystem"
+        }
+    )
+    
+    if success:
+        logger.info(f"A2A service registered with ID: {a2a_component_id}")
+    else:
+        logger.warning("Failed to register A2A service")
+    
+    # Register the MCP service
+    mcp_component_id = "hermes-mcp-service"
+    
+    success, _ = registration_manager.register_component(
+        component_id=mcp_component_id,
+        name="Hermes MCP Service",
+        version="0.1.0",
+        component_type="hermes",
+        endpoint=f"http://localhost:{os.environ.get('PORT', '8001')}/api/mcp",
+        capabilities=["mcp", "tool_registry", "message_processing", "context_management"],
+        metadata={
+            "description": "Multimodal Cognitive Protocol service for Tekton ecosystem"
+        }
+    )
+    
+    if success:
+        logger.info(f"MCP service registered with ID: {mcp_component_id}")
+    else:
+        logger.warning("Failed to register MCP service")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -243,9 +320,25 @@ async def root():
     """Root endpoint that redirects to the API documentation."""
     return {"message": "Welcome to Hermes API. Visit /docs for API documentation."}
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "components": {
+            "service_registry": True,
+            "message_bus": True,
+            "registration_manager": True,
+            "database_manager": True,
+            "a2a_service": True,
+            "mcp_service": True
+        },
+        "timestamp": time.time()
+    }
+
 def run_server():
     """Run the Hermes API server."""
-    port = int(os.environ.get("PORT", "8000"))
+    port = int(os.environ.get("PORT", "8001"))
     host = os.environ.get("HOST", "0.0.0.0")
     
     logger.info(f"Starting Hermes API server on {host}:{port}")
