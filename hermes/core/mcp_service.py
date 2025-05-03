@@ -77,17 +77,17 @@ class MCPService:
         )
         
         # Subscribe to channels
-        await self.message_bus.subscribe(
+        await self.message_bus.subscribe_async(
             'mcp.tools',
             self._handle_tool_message
         )
         
-        await self.message_bus.subscribe(
+        await self.message_bus.subscribe_async(
             'mcp.contexts',
             self._handle_context_message
         )
         
-        await self.message_bus.subscribe(
+        await self.message_bus.subscribe_async(
             'mcp.processors',
             self._handle_processor_message
         )

@@ -84,22 +84,22 @@ class A2AService:
         )
         
         # Subscribe to channels
-        await self.message_bus.subscribe(
+        await self.message_bus.subscribe_async(
             'a2a.registration',
             self._handle_registration
         )
         
-        await self.message_bus.subscribe(
+        await self.message_bus.subscribe_async(
             'a2a.messages',
             self._handle_message
         )
         
-        await self.message_bus.subscribe(
+        await self.message_bus.subscribe_async(
             'a2a.tasks',
             self._handle_task
         )
         
-        await self.message_bus.subscribe(
+        await self.message_bus.subscribe_async(
             'a2a.conversations',
             self._handle_conversation
         )

@@ -56,8 +56,20 @@ class RegistrationManager:
         
         logger.info("Registration manager initialized")
     
+    async def _setup_subscriptions_async(self) -> None:
+        """Set up message bus subscriptions for registration events (async version)."""
+        await self.message_bus.subscribe_async("tekton.registration.request", 
+                                     lambda msg: handle_registration_request(self, msg))
+        await self.message_bus.subscribe_async("tekton.registration.revoke", 
+                                     lambda msg: handle_revocation_request(self, msg))
+        await self.message_bus.subscribe_async("tekton.registration.heartbeat", 
+                                     lambda msg: handle_heartbeat(self, msg))
+        logger.info("Registration event subscriptions established (async)")
+        
     def _setup_subscriptions(self) -> None:
         """Set up message bus subscriptions for registration events."""
+        # For non-async context, use the synchronous subscribe method
+        # This is needed because the constructor is not async
         self.message_bus.subscribe("tekton.registration.request", 
                                  lambda msg: handle_registration_request(self, msg))
         self.message_bus.subscribe("tekton.registration.revoke", 
@@ -124,22 +136,27 @@ class RegistrationManager:
             "expires_at": token.expires_at
         }
         
-        # Publish registration event
-        self.message_bus.publish(
-            topic="tekton.registration.completed",
-            message={
-                "component_id": component_id,
-                "name": name,
-                "type": component_type,
-                "version": version,
-                "capabilities": capabilities,
-                "registered_at": time.time()
-            },
-            headers={
-                "event_type": "component_registration",
-                "component_id": component_id
-            }
-        )
+        # Publish registration event - we'll use the non-async version
+        # since this method is not async
+        try:
+            self.message_bus.publish(
+                topic="tekton.registration.completed",
+                message={
+                    "component_id": component_id,
+                    "name": name,
+                    "type": component_type,
+                    "version": version,
+                    "capabilities": capabilities,
+                    "registered_at": time.time()
+                },
+                headers={
+                    "event_type": "component_registration",
+                    "component_id": component_id
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error publishing registration event: {e}")
+            # Continue execution even if publishing fails
         
         logger.info(f"Component {component_id} ({name}) registered successfully")
         return True, token_str

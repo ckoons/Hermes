@@ -13,6 +13,7 @@ import asyncio
 import subprocess
 import signal
 import atexit
+import time
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,7 @@ from hermes.core.service_discovery import ServiceRegistry
 from hermes.core.message_bus import MessageBus
 from hermes.core.registration import RegistrationManager
 from hermes.core.database.manager import DatabaseManager
+from hermes.utils.port_config import get_hermes_port, get_db_mcp_port
 
 # Configure logging
 logging.basicConfig(
@@ -120,7 +122,8 @@ async def start_database_mcp_server():
     global database_mcp_process
     
     # Get configuration from environment
-    db_mcp_port = os.environ.get("DB_MCP_PORT", "8002")
+    from hermes.utils.port_config import get_db_mcp_port
+    db_mcp_port = str(get_db_mcp_port())
     db_mcp_host = os.environ.get("DB_MCP_HOST", "127.0.0.1")
     debug_mode = os.environ.get("DEBUG", "False").lower() == "true"
     data_dir = os.environ.get("HERMES_DATA_DIR", "~/.tekton/data")
@@ -138,8 +141,7 @@ async def start_database_mcp_server():
         sys.executable,
         str(script_path),
         "--port", db_mcp_port,
-        "--host", db_mcp_host,
-        "--data-dir", data_dir
+        "--host", db_mcp_host
     ]
     
     if debug_mode:
@@ -220,7 +222,7 @@ async def startup_event():
         name="Hermes API Server",
         version="0.1.0",
         component_type="hermes",
-        endpoint=f"http://localhost:{os.environ.get('PORT', '8001')}/api",
+        endpoint=f"http://localhost:{get_hermes_port()}/api",
         capabilities=[
             "registration", 
             "service_discovery", 
@@ -269,7 +271,7 @@ async def startup_event():
         name="Hermes A2A Service",
         version="0.1.0",
         component_type="hermes",
-        endpoint=f"http://localhost:{os.environ.get('PORT', '8001')}/api/a2a",
+        endpoint=f"http://localhost:{get_hermes_port()}/api/a2a",
         capabilities=["a2a", "agent_registry", "task_management", "conversation_management"],
         metadata={
             "description": "Agent-to-Agent communication service for Tekton ecosystem"
@@ -289,7 +291,7 @@ async def startup_event():
         name="Hermes MCP Service",
         version="0.1.0",
         component_type="hermes",
-        endpoint=f"http://localhost:{os.environ.get('PORT', '8001')}/api/mcp",
+        endpoint=f"http://localhost:{get_hermes_port()}/api/mcp",
         capabilities=["mcp", "tool_registry", "message_processing", "context_management"],
         metadata={
             "description": "Multimodal Cognitive Protocol service for Tekton ecosystem"
@@ -338,7 +340,8 @@ async def health_check():
 
 def run_server():
     """Run the Hermes API server."""
-    port = int(os.environ.get("PORT", "8001"))
+    from hermes.utils.port_config import get_hermes_port
+    port = get_hermes_port()
     host = os.environ.get("HOST", "0.0.0.0")
     
     logger.info(f"Starting Hermes API server on {host}:{port}")

@@ -212,3 +212,136 @@ class MessageBus:
         """
         logger.info("Closing message bus connection")
         # TODO: Implement actual connection closing
+        
+    async def create_channel(self, channel_name: str, description: str = "") -> bool:
+        """
+        Create a new channel for message exchange.
+        
+        Args:
+            channel_name: Name of the channel to create
+            description: Optional description of the channel
+            
+        Returns:
+            True if channel creation successful
+        """
+        logger.info(f"Creating channel: {channel_name} - {description}")
+        
+        # For now, this is a stub implementation that just logs the request
+        # and returns success. In a real implementation, this would create
+        # the channel in the message broker.
+        
+        # Add a subscription entry for this channel if it doesn't exist
+        if channel_name not in self.subscriptions:
+            self.subscriptions[channel_name] = set()
+            
+        return True
+        
+    async def subscribe_async(self, topic: str, callback: Callable[[Dict[str, Any]], None]) -> bool:
+        """
+        Subscribe to a topic (async version).
+        
+        Args:
+            topic: Topic to subscribe to
+            callback: Function to call when a message is received
+            
+        Returns:
+            True if subscription successful
+        """
+        # This is the async version of the subscribe method
+        # Avoid recursion by implementing directly
+        if topic not in self.subscriptions:
+            self.subscriptions[topic] = set()
+        
+        # Add callback
+        self.subscriptions[topic].add(callback)
+        
+        logger.info(f"Subscribed to topic {topic} (async)")
+        return True
+        
+    async def publish_async(self, 
+                    topic: str, 
+                    message: Any,
+                    headers: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        Publish a message to a topic (async version).
+        
+        Args:
+            topic: Topic to publish to
+            message: Message to publish (will be serialized)
+            headers: Optional message headers
+            
+        Returns:
+            True if publication successful
+        """
+        # Create message envelope
+        headers = headers or {}
+        headers["timestamp"] = time.time()
+        headers["topic"] = topic
+        
+        envelope = {
+            "headers": headers,
+            "payload": message
+        }
+        
+        # Serialize to JSON
+        try:
+            message_json = json.dumps(envelope)
+        except TypeError:
+            logger.error(f"Cannot serialize message for topic {topic}")
+            return False
+        
+        # TODO: Implement actual message publication
+        logger.info(f"Publishing message to topic {topic} (async)")
+        
+        # Store in history if enabled
+        if self.history_size > 0:
+            if topic not in self.history:
+                self.history[topic] = []
+            
+            self.history[topic].append(envelope)
+            
+            # Trim history if needed
+            if len(self.history[topic]) > self.history_size:
+                self.history[topic] = self.history[topic][-self.history_size:]
+        
+        # Deliver to local subscribers
+        await self._deliver_to_subscribers_async(topic, envelope)
+        
+        return True
+        
+    async def _deliver_to_subscribers_async(self, topic: str, message: Dict[str, Any]) -> None:
+        """
+        Deliver a message to all subscribers of a topic (async version).
+        
+        Args:
+            topic: Topic the message was published to
+            message: Message envelope
+        """
+        # Check for exact topic match
+        if topic in self.subscriptions:
+            for callback in self.subscriptions[topic]:
+                try:
+                    # Check if callback is a coroutine function
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback(message)
+                    else:
+                        # Call synchronously for regular functions
+                        callback(message)
+                except Exception as e:
+                    logger.error(f"Error in subscriber callback for topic {topic}: {e}")
+        
+        # Check for wildcard subscriptions
+        for subscription_topic, callbacks in self.subscriptions.items():
+            if "*" in subscription_topic:
+                pattern = subscription_topic.replace("*", "")
+                if topic.startswith(pattern) or topic.endswith(pattern):
+                    for callback in callbacks:
+                        try:
+                            # Check if callback is a coroutine function
+                            if asyncio.iscoroutinefunction(callback):
+                                await callback(message)
+                            else:
+                                # Call synchronously for regular functions
+                                callback(message)
+                        except Exception as e:
+                            logger.error(f"Error in wildcard subscriber callback for topic {topic}: {e}")
